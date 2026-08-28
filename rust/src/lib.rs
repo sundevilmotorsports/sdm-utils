@@ -1,5 +1,7 @@
 #![cfg_attr(not(test), no_std)]
 
+pub mod ota;
+
 pub const MSG_SHIFT: u32 = 8;
 pub const NODE_SHIFT: u32 = 0;
 
