@@ -1,6 +1,7 @@
 /* Extended 29-bit identifiers, low two bytes used:
- *   bits 15..8 : message type
- *   bits  7..0 : source node id
+ *   bits 16..23 : 
+ *   bits 15..8  : message type
+ *   bits  7..0  : source node id
  */
 #ifndef SDM_CAN_ID_H
 #define SDM_CAN_ID_H
@@ -11,11 +12,13 @@
 extern "C" {
 #endif
 
+/* Mirror any change to the shifts or enums below into rust/src/lib.rs. */
 #define SDM_CAN_MSG_SHIFT  8
 #define SDM_CAN_NODE_SHIFT 0
 
 enum sdm_node {
     SDM_NODE_NONE      = 0x00,
+    SDM_NODE_LOGGER    = 0x01,
     SDM_NODE_BROADCAST = 0xFF,
 };
 
