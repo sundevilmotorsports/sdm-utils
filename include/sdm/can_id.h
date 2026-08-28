@@ -1,7 +1,7 @@
 /* Extended 29-bit identifiers, low two bytes used:
- *   bits 16..23 : 
- *   bits 15..8  : message type
- *   bits  7..0  : source node id
+ *   bits 28..16 : reserved (0)
+ *   bits 15.. 8 : message type
+ *   bits  7.. 0 : node id
  */
 #ifndef SDM_CAN_ID_H
 #define SDM_CAN_ID_H
@@ -23,8 +23,13 @@ enum sdm_node {
 };
 
 enum sdm_msg {
-    SDM_MSG_FAULT     = 0,
-    SDM_MSG_HEARTBEAT = 1,
+    SDM_MSG_FAULT     = 0x00,
+    SDM_MSG_HEARTBEAT = 0x01,
+
+    SDM_MSG_OTA_ACK   = 0xF0,   /* target -> sender: [u32 offset][u8 status]  */
+    SDM_MSG_OTA_START = 0xF1,   /* sender -> target: [u32 size][u32 crc32]     */
+    SDM_MSG_OTA_END   = 0xF2,   /* sender -> target: empty                     */
+    SDM_MSG_OTA_DATA  = 0xF3,   /* sender -> target: [u8 seq][<=7 fw bytes]    */
 };
 
 static inline uint32_t sdm_can_id(uint8_t msg, uint8_t node) {

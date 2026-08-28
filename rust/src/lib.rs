@@ -16,8 +16,12 @@ pub enum Node {
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Msg {
-    Fault = 0,
-    Heartbeat = 1,
+    Fault = 0x00,
+    Heartbeat = 0x01,
+    OtaAck = 0xF0,
+    OtaStart = 0xF1,
+    OtaEnd = 0xF2,
+    OtaData = 0xF3,
 }
 
 pub const fn can_id(msg: u8, node: u8) -> u32 {
