@@ -1,5 +1,11 @@
 #![cfg_attr(not(test), no_std)]
 
+#[cfg(any(feature = "alloc", test))]
+extern crate alloc;
+
+#[cfg(any(feature = "alloc", test))]
+pub mod logfmt;
+
 pub mod ota;
 
 pub const MSG_SHIFT: u32 = 8;

@@ -3,6 +3,10 @@ name = "sdm-utils"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+# Pulls in the `logfmt` module (the binary log format codec), which allocates.
+alloc = []
+
 [build-dependencies]
 bindgen = "0.72.1"
 cc = "1"
