@@ -1,18 +1,31 @@
-use core::ffi::{c_int, c_void};
-
-mod sys {
-    #![allow(non_camel_case_types, non_upper_case_globals, dead_code)]
-    include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
+/// Result of an [`Ota`] state-machine call.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Error {
+    /// Call made in the wrong state.
+    State,
+    /// Chunk offset did not match the expected write position.
+    Offset,
+    /// Data would exceed the declared image size.
+    Size,
+    /// CRC32 mismatch at [`Ota::end`].
+    Crc,
+    /// A [`Flash`] operation failed.
+    Flash,
+    /// Zero image size, or an empty chunk.
+    Arg,
 }
 
-pub use sys::{can_ota_result as Error, can_ota_state as State};
-
-/// CRC32 (IEEE 802.3); a sender passes this to [`Ota::begin`].
-pub fn crc32(data: &[u8]) -> u32 {
-    unsafe { sys::can_ota_crc32(data.as_ptr().cast(), data.len()) }
+/// Transfer state; read with [`Ota::state`].
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum State {
+    #[default]
+    Idle,
+    Receiving,
+    Done,
+    Error,
 }
 
-/// A [`Flash`] operation failed (maps to a nonzero C callback return).
+/// A [`Flash`] operation failed
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct FlashError;
 
@@ -24,93 +37,133 @@ pub trait Flash {
     fn done(&mut self) {}
 }
 
-fn to_c(r: Result<(), FlashError>) -> c_int {
-    r.map_or(-1, |_| 0)
-}
-fn check(r: Error) -> Result<(), Error> {
-    if r == Error::CAN_OTA_OK {
-        Ok(())
-    } else {
-        Err(r)
-    }
+/// CRC32 (IEEE 802.3); a sender passes this to [`Ota::begin`].
+pub fn crc32(data: &[u8]) -> u32 {
+    crc32_update(0, data)
 }
 
-unsafe extern "C" fn t_begin<F: Flash>(u: *mut c_void, n: u32) -> c_int {
-    to_c((*u.cast::<F>()).begin(n))
-}
-unsafe extern "C" fn t_write<F: Flash>(u: *mut c_void, off: u32, d: *const c_void, n: u32) -> c_int {
-    to_c((*u.cast::<F>()).write(off, core::slice::from_raw_parts(d.cast(), n as usize)))
-}
-unsafe extern "C" fn t_end<F: Flash>(u: *mut c_void) -> c_int {
-    to_c((*u.cast::<F>()).end())
-}
-unsafe extern "C" fn t_done<F: Flash>(u: *mut c_void) {
-    (*u.cast::<F>()).done()
-}
-
-/// CAN-OTA receiver. Movable: the pointers the C struct caches are refreshed
-/// before every call, and C only calls back synchronously within a call.
+/// CAN-OTA receiver. Drive it `new` → `begin` → `chunk`… → `end`.
 pub struct Ota<F: Flash> {
-    c: sys::can_ota,
-    cbs: sys::can_ota_callbacks,
+    state: State,
+    image_size: u32,
+    expected_crc: u32,
+    offset: u32,
+    crc: u32,
     flash: F,
 }
 
 impl<F: Flash> Ota<F> {
     pub fn new(flash: F) -> Self {
-        let mut ota = Ota {
-            c: unsafe { core::mem::zeroed() },
-            cbs: sys::can_ota_callbacks {
-                flash_begin: Some(t_begin::<F>),
-                flash_write: Some(t_write::<F>),
-                flash_end: Some(t_end::<F>),
-                done: Some(t_done::<F>),
-                user: core::ptr::null_mut(),
-            },
+        Ota {
+            state: State::Idle,
+            image_size: 0,
+            expected_crc: 0,
+            offset: 0,
+            crc: 0,
             flash,
-        };
-        ota.sync();
-        unsafe { sys::can_ota_init(&mut ota.c, &ota.cbs) };
-        ota
+        }
     }
 
-    fn sync(&mut self) {
-        self.cbs.user = core::ptr::addr_of_mut!(self.flash).cast();
-        self.c.cb = core::ptr::addr_of!(self.cbs);
+    fn fail(&mut self, e: Error) -> Error {
+        self.state = State::Error;
+        e
+    }
+
+    /// Map a flash result into the state machine, going to [`State::Error`] on failure.
+    fn io(&mut self, r: Result<(), FlashError>) -> Result<(), Error> {
+        match r {
+            Ok(()) => Ok(()),
+            Err(FlashError) => Err(self.fail(Error::Flash)),
+        }
     }
 
     /// Start receiving `image_size` bytes with the given CRC32.
     pub fn begin(&mut self, image_size: u32, expected_crc: u32) -> Result<(), Error> {
-        self.sync();
-        check(unsafe { sys::can_ota_begin(&mut self.c, image_size, expected_crc) })
+        if image_size == 0 {
+            return Err(Error::Arg);
+        }
+        if self.state == State::Receiving {
+            return Err(Error::State);
+        }
+        self.image_size = image_size;
+        self.expected_crc = expected_crc;
+        self.offset = 0;
+        self.crc = 0;
+        self.state = State::Receiving;
+
+        let r = self.flash.begin(image_size);
+        self.io(r)
     }
 
     /// Feed the next chunk; `offset` must equal [`Ota::progress`].
     pub fn chunk(&mut self, offset: u32, data: &[u8]) -> Result<(), Error> {
-        self.sync();
-        check(unsafe {
-            sys::can_ota_chunk(&mut self.c, offset, data.as_ptr().cast(), data.len() as u32)
-        })
+        if data.is_empty() {
+            return Err(Error::Arg);
+        }
+        if self.state != State::Receiving {
+            return Err(Error::State);
+        }
+        if offset != self.offset {
+            return Err(Error::Offset);
+        }
+        if data.len() as u32 > self.image_size - self.offset {
+            return Err(self.fail(Error::Size));
+        }
+
+        let r = self.flash.write(offset, data);
+        self.io(r)?;
+
+        self.crc = crc32_update(self.crc, data);
+        self.offset += data.len() as u32;
+        Ok(())
     }
 
     /// Verify size + CRC, finalize flash, call [`Flash::done`].
     pub fn end(&mut self) -> Result<(), Error> {
-        self.sync();
-        check(unsafe { sys::can_ota_end(&mut self.c) })
+        if self.state != State::Receiving {
+            return Err(Error::State);
+        }
+        if self.offset != self.image_size {
+            return Err(self.fail(Error::Size));
+        }
+        if self.crc != self.expected_crc {
+            return Err(self.fail(Error::Crc));
+        }
+
+        let r = self.flash.end();
+        self.io(r)?;
+
+        self.state = State::Done;
+        self.flash.done();
+        Ok(())
     }
 
     pub fn abort(&mut self) {
-        self.sync();
-        unsafe { sys::can_ota_abort(&mut self.c) };
+        self.state = State::Idle;
+        self.offset = 0;
+        self.crc = 0;
     }
 
     pub fn progress(&self) -> u32 {
-        self.c.offset
+        self.offset
     }
     pub fn state(&self) -> State {
-        self.c.state
+        self.state
     }
     pub fn flash_mut(&mut self) -> &mut F {
         &mut self.flash
     }
+}
+
+/// Bit-serial CRC32, matching `can_ota_crc32_update` in the C source.
+fn crc32_update(crc: u32, data: &[u8]) -> u32 {
+    let mut crc = !crc;
+    for &b in data {
+        crc ^= b as u32;
+        for _ in 0..8 {
+            // C: (crc >> 1) ^ (0xEDB88320u & -(crc & 1u))
+            crc = (crc >> 1) ^ (0xEDB8_8320 & 0u32.wrapping_sub(crc & 1));
+        }
+    }
+    !crc
 }

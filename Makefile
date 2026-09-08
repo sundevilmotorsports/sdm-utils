@@ -18,9 +18,14 @@ build/%.o: src/%.c
 	@mkdir -p build
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-# every header must also compile standalone
-check:
+# every header must also compile standalone, then run the cross-language vectors
+check: build/vectors
 	@for h in $(HDRS); do echo "$$h" && $(CC) $(CFLAGS) -fsyntax-only -x c $$h || exit 1; done
+	./build/vectors tests/vectors.tsv
+
+build/vectors: tests/vectors.c src/can_ota.c $(HDRS)
+	@mkdir -p build
+	$(CC) $(CFLAGS) -o $@ tests/vectors.c src/can_ota.c
 
 clean:
 	rm -rf build

@@ -6,10 +6,3 @@ edition = "2021"
 [features]
 # Pulls in the `logfmt` module (the binary log format codec), which allocates.
 alloc = []
-
-[dependencies]
-esp-idf-sys = "0.37"
-
-[build-dependencies]
-bindgen = "0.72.1"
-cc = "1"
