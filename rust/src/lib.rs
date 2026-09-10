@@ -24,10 +24,32 @@ pub enum Node {
 pub enum Msg {
     Fault = 0x00,
     Heartbeat = 0x01,
+    Identify = 0x02,
+    Start = 0x03,
+    Stop = 0x04,
+    Restart = 0x05,
     OtaAck = 0xF0,
     OtaStart = 0xF1,
     OtaEnd = 0xF2,
     OtaData = 0xF3,
+}
+
+impl Msg {
+    pub const fn from_byte(b: u8) -> Option<Self> {
+        match b {
+            0x00 => Some(Self::Fault),
+            0x01 => Some(Self::Heartbeat),
+            0x02 => Some(Self::Identify),
+            0x03 => Some(Self::Start),
+            0x04 => Some(Self::Stop),
+            0x05 => Some(Self::Restart),
+            0xF0 => Some(Self::OtaAck),
+            0xF1 => Some(Self::OtaStart),
+            0xF2 => Some(Self::OtaEnd),
+            0xF3 => Some(Self::OtaData),
+            _ => None,
+        }
+    }
 }
 
 pub const fn can_id(msg: u8, node: u8) -> u32 {

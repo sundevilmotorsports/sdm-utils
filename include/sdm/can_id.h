@@ -25,6 +25,10 @@ enum sdm_node {
 enum sdm_msg {
     SDM_MSG_FAULT     = 0x00,
     SDM_MSG_HEARTBEAT = 0x01,
+    SDM_MSG_IDENTIFY  = 0x02,
+    SDM_MSG_START     = 0x03,
+    SDM_MSG_STOP      = 0x04,
+    SDM_MSG_RESTART   = 0x05,
 
     SDM_MSG_OTA_ACK   = 0xF0,   /* target -> sender: [u32 offset][u8 status]  */
     SDM_MSG_OTA_START = 0xF1,   /* sender -> target: [u32 size][u32 crc32]     */
