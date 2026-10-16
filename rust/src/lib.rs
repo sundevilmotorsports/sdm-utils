@@ -16,6 +16,7 @@ pub const NODE_SHIFT: u32 = 0;
 pub enum Node {
     None = 0x00,
     Logger = 0x01,
+    Imu = 0x02,
     Broadcast = 0xFF,
 }
 
@@ -68,12 +69,14 @@ pub const fn can_id_node(id: u32) -> u8 {
 pub enum DeviceType {
     Unknown = 0x00,
     Logger = 0x01,
+    Imu = 0x02,
 }
 
 impl DeviceType {
     pub const fn from_byte(b: u8) -> Self {
         match b {
             0x01 => Self::Logger,
+            0x02 => Self::Imu,
             _ => Self::Unknown,
         }
     }
@@ -82,6 +85,7 @@ impl DeviceType {
         match self {
             Self::Unknown => "unknown",
             Self::Logger => "logger",
+            Self::Imu => "imu",
         }
     }
 }

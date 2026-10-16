@@ -14,6 +14,7 @@ extern "C" {
 enum sdm_type {
     SDM_TYPE_UNKNOWN = 0x00,
     SDM_TYPE_LOGGER  = 0x01,
+    SDM_TYPE_IMU     = 0x02,
 };
 
 #ifdef __cplusplus

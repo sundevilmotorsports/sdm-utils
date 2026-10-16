@@ -19,6 +19,7 @@ extern "C" {
 enum sdm_node {
     SDM_NODE_NONE      = 0x00,
     SDM_NODE_LOGGER    = 0x01,
+    SDM_NODE_IMU       = 0x02,
     SDM_NODE_BROADCAST = 0xFF,
 };
 
