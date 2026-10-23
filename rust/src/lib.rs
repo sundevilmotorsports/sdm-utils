@@ -17,6 +17,7 @@ pub enum Node {
     None = 0x00,
     Logger = 0x01,
     Imu = 0x02,
+    Coolant = 0x03,
     Broadcast = 0xFF,
 }
 
@@ -70,6 +71,7 @@ pub enum DeviceType {
     Unknown = 0x00,
     Logger = 0x01,
     Imu = 0x02,
+    Coolant = 0x03,
 }
 
 impl DeviceType {
@@ -77,6 +79,7 @@ impl DeviceType {
         match b {
             0x01 => Self::Logger,
             0x02 => Self::Imu,
+            0x03 => Self::Coolant,
             _ => Self::Unknown,
         }
     }
@@ -86,6 +89,7 @@ impl DeviceType {
             Self::Unknown => "unknown",
             Self::Logger => "logger",
             Self::Imu => "imu",
+            Self::Coolant => "coolant",
         }
     }
 }
